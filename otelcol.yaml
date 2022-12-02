@@ -1,0 +1,71 @@
+extensions:
+  health_check:
+  pprof:
+    endpoint: 0.0.0.0:1777
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:         
+
+  opencensus:
+
+  # Collect own metrics
+  prometheus:
+    config:
+      scrape_configs:
+      - job_name: 'otel-collector'
+        scrape_interval: 10s
+        static_configs:
+        - targets: ['0.0.0.0:8888']
+
+  jaeger:
+    protocols:
+      grpc:
+      thrift_binary:
+      thrift_compact:
+      thrift_http:
+
+  zipkin:
+
+processors:
+      batch:
+        send_batch_size: 1000
+        timeout: 10s
+      memory_limiter:
+        # Same as --mem-ballast-size-mib CLI argument
+        # ballast_size_mib: 683
+        # 80% of maximum memory up to 2G
+        limit_mib: 1500
+        # 25% of limit up to 2G
+        spike_limit_mib: 512
+        check_interval: 5s
+      # queued_retry:
+      #   num_workers: 4
+      #   queue_size: 100
+      #   retry_on_failure: true
+
+exporters:
+  logging:
+    logLevel: debug
+  zipkin:
+    endpoint: http://localhost:9411/api/v2/spans
+
+service:
+
+  pipelines:
+
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [zipkin, logging]
+
+    # metrics:
+    #   receivers: [otlp, opencensus, prometheus]
+    #   processors: [batch]
+    #   exporters: [logging]
+
+  extensions: [health_check, pprof, zpages]
